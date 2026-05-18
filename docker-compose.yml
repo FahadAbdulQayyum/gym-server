@@ -1,0 +1,24 @@
+services:
+  api:
+    build: .
+    ports:
+      - "${PORT:-3847}:3847"
+    env_file:
+      - .env
+    environment:
+      PORT: 3847
+    restart: unless-stopped
+
+  # Local MongoDB (optional — use with Atlas by leaving this commented out)
+  # mongo:
+  #   image: mongo:7
+  #   ports:
+  #     - "27017:27017"
+  #   volumes:
+  #     - mongo_data:/data/db
+  #
+  # To use local mongo, set in .env:
+  #   MONGODB_URI=mongodb://mongo:27017
+
+# volumes:
+#   mongo_data:
