@@ -65,7 +65,7 @@ function authorize(req, res, next) {
 
   next();
 }
-
+// 
 app.get('/health', async (_req, res) => {
   const payload = {
     ok: true,
