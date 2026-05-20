@@ -37,6 +37,13 @@ app.use(express.json({ limit: '12mb' }));
 let client;
 let studentsCollection;
 let usersCollection;
+let initPromise;
+
+function detectRuntime() {
+  if (process.env.VERCEL) return 'vercel';
+  if (process.env.FUNCTION_TARGET) return 'firebase';
+  return 'local';
+}
 
 function parseSince(value) {
   if (!value) return null;
@@ -65,14 +72,14 @@ function authorize(req, res, next) {
 
   next();
 }
-// 
+
 app.get('/health', async (_req, res) => {
   const payload = {
     ok: true,
     service: 'gym-sync',
     version,
     timestamp: new Date().toISOString(),
-    runtime: process.env.FUNCTION_TARGET ? 'firebase' : 'local',
+    runtime: detectRuntime(),
     mongodb: 'unknown',
   };
 
@@ -246,8 +253,18 @@ async function initialize() {
   return app;
 }
 
+async function ensureInitialized() {
+  if (!initPromise) {
+    initPromise = initialize().catch((error) => {
+      initPromise = null;
+      throw error;
+    });
+  }
+  return initPromise;
+}
+
 async function start() {
-  await initialize();
+  await ensureInitialized();
   app.listen(PORT, () => {
     console.log(`Gym sync API listening on http://localhost:${PORT}`);
     console.log(`Health check: http://localhost:${PORT}/health`);
@@ -275,7 +292,7 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, initialize };
+module.exports = { app, initialize, ensureInitialized };
 
 process.on('SIGINT', async () => {
   await client?.close();
