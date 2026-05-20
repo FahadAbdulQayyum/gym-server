@@ -5,6 +5,7 @@ const express = require('express');
 const cors = require('cors');
 const { MongoClient } = require('mongodb');
 const { version } = require('./package.json');
+const { registerAuthRoutes } = require('./auth');
 
 const PORT = Number(process.env.PORT) || 3847;
 const MONGODB_DB = process.env.MONGODB_DB || 'gym';
@@ -37,6 +38,7 @@ app.use(express.json({ limit: '12mb' }));
 let client;
 let studentsCollection;
 let usersCollection;
+let accountsCollection;
 let initPromise;
 
 function detectRuntime() {
@@ -189,7 +191,10 @@ async function pullChangedRecords(collection, gymId, since) {
   return { records, deletions };
 }
 
-app.post('/api/sync', authorize, async (req, res) => {
+function registerRoutes() {
+  registerAuthRoutes(app, { accountsCollection, authorize });
+
+  app.post('/api/sync', authorize, async (req, res) => {
   try {
     const gymId = String(req.body?.gymId ?? '').trim();
     if (!gymId) {
@@ -221,7 +226,8 @@ app.post('/api/sync', authorize, async (req, res) => {
     console.error('Sync failed:', error);
     res.status(500).json({ error: 'Sync failed' });
   }
-});
+  });
+}
 
 function configureMongoDns() {
   if (!MONGODB_URI.startsWith('mongodb+srv://')) {
@@ -243,12 +249,21 @@ async function initialize() {
   const db = client.db(MONGODB_DB);
   studentsCollection = db.collection('students');
   usersCollection = db.collection('users');
+  accountsCollection = db.collection('accounts');
 
   for (const collection of [studentsCollection, usersCollection]) {
     await collection.createIndex({ gymId: 1, id: 1 }, { unique: true });
     await collection.createIndex({ gymId: 1, updatedAt: 1 });
     await collection.createIndex({ gymId: 1, deletedAt: 1 });
   }
+
+  await accountsCollection.createIndex({ id: 1 }, { unique: true });
+  await accountsCollection.createIndex(
+    { username: 1 },
+    { unique: true, partialFilterExpression: { deletedAt: null } }
+  );
+
+  registerRoutes();
 
   return app;
 }
